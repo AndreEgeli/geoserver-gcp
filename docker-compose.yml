@@ -15,7 +15,6 @@ services:
       - INITIAL_MEMORY=${INITIAL_MEMORY}
       - MAXIMUM_MEMORY=${MAXIMUM_MEMORY}
       - RECREATE_DATADIR=FALSE
-      - HTTPS_PROXY_NAME=geoserver.enernite.com
 
   letsencrypt:
     image: certbot/certbot
