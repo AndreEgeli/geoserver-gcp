@@ -10,10 +10,11 @@ services:
     environment:
       - GEOSERVER_DATA_DIR=${GEOSERVER_DATA_DIR}
       - GEOWEBCACHE_CACHE_DIR=${GEOWEBCACHE_CACHE_DIR}
-      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD}
-      - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
+      - GEOSERVER_ADMIN_PASSWORD=geoserver
+      - GEOSERVER_ADMIN_USER=admin
       - INITIAL_MEMORY=${INITIAL_MEMORY}
       - MAXIMUM_MEMORY=${MAXIMUM_MEMORY}
+      - RECREATE_DATADIR=FALSE
 
   letsencrypt:
     image: certbot/certbot
@@ -35,8 +36,8 @@ services:
   nginx:
     image: lukeswart/nginx-letsencrypt
     volumes:
-      - ./nginx-acme-challenge.conf:/etc/nginx/nginx.conf
-      - ./nginx.conf:/etc/nginx/nginx-secure.conf
+      - ./nginx-acme-challenge-envsubst.conf:/etc/nginx/nginx.conf
+      - ./nginx-envsubst.conf:/etc/nginx/nginx-secure.conf
     links:
       - geoserver
       - letsencrypt
