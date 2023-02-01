@@ -41,7 +41,7 @@ services:
     links:
       - geoserver
     volumes_from:
-      - letsencrypt:r
+      - letsencrypt
     environment:
       - MY_DOMAIN_NAME=${MY_DOMAIN_NAME}
     ports:
