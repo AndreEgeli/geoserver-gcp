@@ -45,6 +45,6 @@ services:
     environment:
       - MY_DOMAIN_NAME=geoserver.enernite.com
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:8080"
+      - "443:8443"
     restart: always
