@@ -1,16 +1,14 @@
 #--------- Generic stuff all our Dockerfiles should start with so we get caching ------------
-FROM tomcat:8.0
-MAINTAINER Tim Sutton<tim@linfiniti.com>
+ARG IMAGE_VERSION=9.0.65-jdk11-openjdk-slim-buster
+ARG JAVA_HOME=/usr/local/openjdk-11
+FROM tomcat:$IMAGE_VERSION
 
 RUN  export DEBIAN_FRONTEND=noninteractive
 ENV  DEBIAN_FRONTEND noninteractive
 RUN  dpkg-divert --local --rename --add /sbin/initctl
 #RUN  ln -s /bin/true /sbin/initctl
 
-# Use local cached debs from host (saves your bandwidth!)
-# Change ip below to that of your apt-cacher-ng host
-# Or comment this line out if you do not with to use caching
-ADD 71-apt-cacher-ng /etc/apt/apt.conf.d/71-apt-cacher-ng
+
 
 # Add custom web.xml configuration file (to support CORS)
 ADD web.xml /usr/local/tomcat/conf/web.xml
@@ -19,8 +17,8 @@ RUN apt-get -y update
 
 #-------------Application Specific Stuff ----------------------------------------------------
 
-ENV GS_VERSION 2.8.0
-ENV GS_VERSION_MAJOR_MINOR 2.8
+ENV GS_VERSION 2.22.0
+ENV GS_VERSION_MAJOR_MINOR 2.22
 ENV GEOSERVER_DATA_DIR /opt/geoserver/data_dir
 
 # Unset Java related ENVs since they may change with Oracle JDK

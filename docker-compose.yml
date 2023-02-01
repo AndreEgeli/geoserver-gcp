@@ -2,7 +2,7 @@ version: '2'
 
 services:
   geoserver:
-    image: kartoza/geoserver
+    image: kartoza/geoserver:2.22.0
     volumes:
       - ./setenv.sh:/usr/local/tomcat/bin/setenv.sh
       - ./geoserver_data:/opt/geoserver/data_dir
