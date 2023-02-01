@@ -14,7 +14,6 @@ services:
       - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
       - INITIAL_MEMORY=${INITIAL_MEMORY}
       - MAXIMUM_MEMORY=${MAXIMUM_MEMORY}
-      - RECREATE_DATADIR=FALSE
 
   letsencrypt:
     image: certbot/certbot
@@ -40,11 +39,12 @@ services:
       - ./nginx.conf:/etc/nginx/nginx-secure.conf
     links:
       - geoserver
+      - letsencrypt
     volumes_from:
       - letsencrypt
     environment:
       - MY_DOMAIN_NAME=${MY_DOMAIN_NAME}
     ports:
-      - 80:80
-      - 443:443
+      - "80:80"
+      - "443:443"
     restart: always

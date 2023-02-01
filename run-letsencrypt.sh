@@ -3,7 +3,6 @@
 # Allow some time for our nginx webserver to start up
 # echo "starting letsencrypt-cron client"
 echo "starting letsencrypt client"
-sleep 6
 
 # read in our args for the letsencrypt command, using the respective environment variables
 domain_args="-d ${LETSENCRYPT_DOMAINS// / -d }"
