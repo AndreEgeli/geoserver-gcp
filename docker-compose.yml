@@ -1,14 +1,11 @@
 version: '3.9'
 
-volumes:
-   geoserver-data:
 services:
   geoserver:
-    build: .
     image: kartoza/geoserver
     volumes:
-      - geoserver-data:/mnt/gcs/geoserver-data
       - ./setenv.sh:/usr/local/tomcat/bin/setenv.sh
+      - ./geoserver_data:/opt/geoserver/data_dir
     restart: on-failure
     environment:
       - GEOSERVER_DATA_DIR=${GEOSERVER_DATA_DIR}
@@ -38,8 +35,8 @@ services:
   nginx:
     image: lukeswart/nginx-letsencrypt
     volumes:
-      - ./nginx-acme-challenge-envsubst.conf:/etc/nginx/nginx.conf
-      - ./nginx-envsubst.conf:/etc/nginx/nginx-secure.conf
+      - ./nginx-acme-challenge.conf:/etc/nginx/nginx.conf
+      - ./nginx.conf:/etc/nginx/nginx-secure.conf
     links:
       - geoserver
     volumes_from:

@@ -1,81 +1,129 @@
 #--------- Generic stuff all our Dockerfiles should start with so we get caching ------------
-ARG IMAGE_VERSION=9.0.65-jdk11-openjdk-slim-buster
-ARG JAVA_HOME=/usr/local/openjdk-11
-FROM tomcat:$IMAGE_VERSION
+FROM tomcat:8.0
+MAINTAINER Tim Sutton<tim@linfiniti.com>
 
-LABEL maintainer="Tim Sutton<tim@linfiniti.com>"
-ARG GS_VERSION=2.22.0
-ARG WAR_URL=https://downloads.sourceforge.net/project/geoserver/GeoServer/${GS_VERSION}/geoserver-${GS_VERSION}-war.zip
-ARG STABLE_PLUGIN_BASE_URL=https://sonik.dl.sourceforge.net
-ARG DOWNLOAD_ALL_STABLE_EXTENSIONS=1
-ARG DOWNLOAD_ALL_COMMUNITY_EXTENSIONS=1
-ARG HTTPS_PORT=8443
-ENV DEBIAN_FRONTEND=noninteractive
-#Install extra fonts to use with sld font markers
-RUN set -eux; \
-    apt-get update; \
-    apt-get -y --no-install-recommends install \
-        locales gnupg2 wget ca-certificates rpl pwgen software-properties-common  iputils-ping \
-        apt-transport-https curl gettext fonts-cantarell lmodern ttf-aenigma \
-        ttf-bitstream-vera ttf-sjfonts tv-fonts  libapr1-dev libssl-dev  \
-        wget zip unzip curl xsltproc certbot  cabextract gettext postgresql-client figlet gosu gdal-bin; \
-    # Install gdal3 - bullseye doesn't build libgdal-java anymore so we can't upgrade
-    curl https://deb.meteo.guru/velivole-keyring.asc |  apt-key add - \
-    && echo "deb https://deb.meteo.guru/debian buster main" > /etc/apt/sources.list.d/meteo.guru.list \
-    && apt-get update \
-    && apt-get -y --no-install-recommends install gdal-bin libgdal-java; \
-    dpkg-divert --local --rename --add /sbin/initctl \
-    && (echo "Yes, do as I say!" | apt-get remove --force-yes login) \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*; \
-    # verify that the binary works
-	gosu nobody true
+RUN  export DEBIAN_FRONTEND=noninteractive
+ENV  DEBIAN_FRONTEND noninteractive
+RUN  dpkg-divert --local --rename --add /sbin/initctl
+#RUN  ln -s /bin/true /sbin/initctl
 
-# Install system dependencies
-RUN set -e; \
-    apt-get update -y && apt-get install -y \
-    tini \
-    lsb-release; \
-    gcsFuseRepo=gcsfuse-`lsb_release -c -s`; \
-    echo "deb http://packages.cloud.google.com/apt $gcsFuseRepo main" | \
-    tee /etc/apt/sources.list.d/gcsfuse.list; \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
-    apt-key add -; \
-    apt-get update; \
-    apt-get install -y gcsfuse \
-    && apt-get clean
+# Use local cached debs from host (saves your bandwidth!)
+# Change ip below to that of your apt-cacher-ng host
+# Or comment this line out if you do not with to use caching
+ADD 71-apt-cacher-ng /etc/apt/apt.conf.d/71-apt-cacher-ng
 
-ENV \
-    JAVA_HOME=${JAVA_HOME} \
-    DEBIAN_FRONTEND=noninteractive \
-    GEOSERVER_DATA_DIR=/mnt/gcs \ 
-    GDAL_DATA=/usr/share/gdal \
-    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/tomcat/native-jni-lib:/usr/lib/jni:/usr/local/apr/lib:/opt/libjpeg-turbo/lib64:/usr/lib:/usr/lib/x86_64-linux-gnu" \
-    FOOTPRINTS_DATA_DIR=/opt/footprints_dir \
-    GEOWEBCACHE_CACHE_DIR=/opt/geoserver/data_dir/gwc \
-    CERT_DIR=/etc/certs \
-    RANDFILE=/etc/certs/.rnd \
-    FONTS_DIR=/opt/fonts \
-    GEOSERVER_HOME=/geoserver \
-    EXTRA_CONFIG_DIR=/settings \
-    COMMUNITY_PLUGINS_DIR=/community_plugins  \
-    STABLE_PLUGINS_DIR=/stable_plugins 
+# Add custom web.xml configuration file (to support CORS)
+ADD web.xml /usr/local/tomcat/conf/web.xml
 
+RUN apt-get -y update
 
-WORKDIR /scripts
+#-------------Application Specific Stuff ----------------------------------------------------
+
+ENV GS_VERSION 2.8.0
+ENV GS_VERSION_MAJOR_MINOR 2.8
+ENV GEOSERVER_DATA_DIR /opt/geoserver/data_dir
+
+# Unset Java related ENVs since they may change with Oracle JDK
+ENV JAVA_VERSION=
+ENV JAVA_DEBIAN_VERSION=
+
+# Set JAVA_HOME to /usr/lib/jvm/default-java and link it to OpenJDK installation
+RUN ln -s /usr/lib/jvm/java-7-openjdk-amd64 /usr/lib/jvm/default-java
+ENV JAVA_HOME /usr/lib/jvm/default-java
+
 ADD resources /tmp/resources
-ADD build_data /build_data
-ADD scripts /scripts
 
-RUN echo $GS_VERSION > /scripts/geoserver_version.txt ;\
-    chmod +x /scripts/*.sh;/scripts/setup.sh \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# If a matching Oracle JDK tar.gz exists in /tmp/resources, move it to /var/cache/oracle-jdk7-installer
+# where oracle-java7-installer will detect it
+RUN if ls /tmp/resources/*jdk-*-linux-x64.tar.gz > /dev/null 2>&1; then \
+      mkdir /var/cache/oracle-jdk7-installer && \
+      mv /tmp/resources/*jdk-*-linux-x64.tar.gz /var/cache/oracle-jdk7-installer/; \
+    fi;
 
+# Install Oracle JDK (and uninstall OpenJDK JRE) if the build-arg ORACLE_JDK = true or an Oracle tar.gz
+# was found in /tmp/resources
+ARG ORACLE_JDK=false
+RUN if ls /var/cache/oracle-jdk7-installer/*jdk-*-linux-x64.tar.gz > /dev/null 2>&1 || [ "$ORACLE_JDK" = true ]; then \
+       apt-get autoremove --purge -y openjdk-7-jre-headless && \
+       echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true \
+         | debconf-set-selections && \
+       echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu precise main" \
+         > /etc/apt/sources.list.d/webupd8team-java.list && \
+       apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886 && \
+       apt-get update && \
+       apt-get install -y oracle-java7-installer oracle-java7-set-default && \
+       ln -s --force /usr/lib/jvm/java-7-oracle /usr/lib/jvm/default-java && \
+       rm -rf /var/lib/apt/lists/* && \
+       rm -rf /var/cache/oracle-jdk7-installer; \
+       if [ -f /tmp/resources/jce_policy.zip ]; then \
+         unzip -j /tmp/resources/jce_policy.zip -d /tmp/jce_policy && \
+         mv /tmp/jce_policy/*.jar $JAVA_HOME/jre/lib/security/; \
+       fi; \
+    fi;
 
-EXPOSE $HTTPS_PORT
+#Add JAI and ImageIO for great speedy speed.
+WORKDIR /tmp
+RUN wget http://download.java.net/media/jai/builds/release/1_1_3/jai-1_1_3-lib-linux-amd64.tar.gz && \
+    wget http://download.java.net/media/jai-imageio/builds/release/1.1/jai_imageio-1_1-lib-linux-amd64.tar.gz && \
+    gunzip -c jai-1_1_3-lib-linux-amd64.tar.gz | tar xf - && \
+    gunzip -c jai_imageio-1_1-lib-linux-amd64.tar.gz | tar xf - && \
+    mv /tmp/jai-1_1_3/lib/*.jar $JAVA_HOME/jre/lib/ext/ && \
+    mv /tmp/jai-1_1_3/lib/*.so $JAVA_HOME/jre/lib/amd64/ && \
+    mv /tmp/jai_imageio-1_1/lib/*.jar $JAVA_HOME/jre/lib/ext/ && \
+    mv /tmp/jai_imageio-1_1/lib/*.so $JAVA_HOME/jre/lib/amd64/ && \
+    rm /tmp/jai-1_1_3-lib-linux-amd64.tar.gz && \
+    rm -r /tmp/jai-1_1_3 && \
+    rm /tmp/jai_imageio-1_1-lib-linux-amd64.tar.gz && \
+    rm -r /tmp/jai_imageio-1_1
+WORKDIR $CATALINA_HOME
 
-RUN echo 'figlet -t "Kartoza Docker GeoServer"' >> ~/.bashrc
+# A little logic that will fetch the geoserver war zip file if it
+# is not available locally in the resources dir
+RUN if [ ! -f /tmp/resources/geoserver.zip ]; then \
+    wget -c http://downloads.sourceforge.net/project/geoserver/GeoServer/${GS_VERSION}/geoserver-${GS_VERSION}-war.zip \
+      -O /tmp/resources/geoserver.zip; \
+    fi; \
+    unzip /tmp/resources/geoserver.zip -d /tmp/geoserver \
+    && unzip /tmp/geoserver/geoserver.war -d $CATALINA_HOME/webapps/geoserver \
+    && rm -rf $CATALINA_HOME/webapps/geoserver/data \
+    && rm -rf /tmp/geoserver
 
-WORKDIR ${GEOSERVER_HOME}
+# Fetch GeoServer plugins
+RUN mkdir -p /tmp/resources/plugins \
+    # Web Processing Service (WPS)
+    && wget https://sourceforge.net/projects/geoserver/files/GeoServer/${GS_VERSION}/extensions/geoserver-${GS_VERSION}-wps-plugin.zip \
+      -O /tmp/resources/plugins/geoserver-${GS_VERSION}-wps-plugin.zip \
+    # MBTiles extension (vector tiles)
+    && wget http://ares.opengeo.org/geoserver/${GS_VERSION_MAJOR_MINOR}.x/community-latest/geoserver-${GS_VERSION_MAJOR_MINOR}-SNAPSHOT-mbtiles-plugin.zip \
+      -O /tmp/resources/plugins/geoserver-${GS_VERSION_MAJOR_MINOR}-SNAPSHOT-mbtiles-plugin.zip \
+    # CSS styling, for simpler style rules
+    && wget https://sourceforge.net/projects/geoserver/files/GeoServer/${GS_VERSION}/extensions/geoserver-${GS_VERSION}-css-plugin.zip \
+      -O /tmp/resources/plugins/geoserver-${GS_VERSION}-css-plugin.zip
 
-ENTRYPOINT ["/bin/bash", "/scripts/entrypoint.sh"]
+# Install any plugin zip files in resources/plugins
+RUN if ls /tmp/resources/plugins/*.zip > /dev/null 2>&1; then \
+      for p in /tmp/resources/plugins/*.zip; do \
+        unzip $p -d /tmp/gs_plugin \
+        && mv /tmp/gs_plugin/*.jar $CATALINA_HOME/webapps/geoserver/WEB-INF/lib/ \
+        && rm -rf /tmp/gs_plugin; \
+      done; \
+    fi
+
+# Overlay files and directories in resources/overlays if they exist
+RUN rm /tmp/resources/overlays/README.txt && \
+    if ls /tmp/resources/overlays/* > /dev/null 2>&1; then \
+      cp -rf /tmp/resources/overlays/* /; \
+    fi;
+
+# Optionally remove Tomcat manager, docs, and examples
+ARG TOMCAT_EXTRAS=true
+RUN if [ "$TOMCAT_EXTRAS" = false ]; then \
+    rm -rf $CATALINA_HOME/webapps/ROOT && \
+    rm -rf $CATALINA_HOME/webapps/docs && \
+    rm -rf $CATALINA_HOME/webapps/examples && \
+    rm -rf $CATALINA_HOME/webapps/host-manager && \
+    rm -rf $CATALINA_HOME/webapps/manager; \
+  fi;
+
+# Delete resources after installation
+RUN rm -rf /tmp/resources
