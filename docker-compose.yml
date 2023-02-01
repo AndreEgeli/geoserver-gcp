@@ -43,8 +43,8 @@ services:
     volumes_from:
       - letsencrypt
     environment:
-      - MY_DOMAIN_NAME=${MY_DOMAIN_NAME}
+      - MY_DOMAIN_NAME=geoserver.enernite.com
     ports:
-      - "80:80"
-      - "443:443"
+      - 80:80
+      - 443:443
     restart: always
