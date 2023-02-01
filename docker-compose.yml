@@ -36,12 +36,12 @@ services:
   nginx:
     image: lukeswart/nginx-letsencrypt
     volumes:
-      - ./nginx-acme-challenge.conf:/etc/nginx/nginx.conf
-      - ./nginx.conf:/etc/nginx/nginx-secure.conf
+      - ./nginx-acme-challenge.conf:/etc/nginx/nginx-unsecure.conf
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/lib/letsencrypt:/var/lib/letsencrypt
     links:
       - geoserver
-    volumes_from:
-      - letsencrypt
     environment:
       - MY_DOMAIN_NAME=geoserver.enernite.com
     ports:
