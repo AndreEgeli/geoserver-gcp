@@ -1,0 +1,52 @@
+version: '3.9'
+
+volumes:
+   geoserver-data:
+services:
+  geoserver:
+    build: .
+    image: kartoza/geoserver
+    volumes:
+      - geoserver-data:/mnt/gcs/geoserver-data
+      - ./setenv.sh:/usr/local/tomcat/bin/setenv.sh
+    restart: on-failure
+    environment:
+      - GEOSERVER_DATA_DIR=${GEOSERVER_DATA_DIR}
+      - GEOWEBCACHE_CACHE_DIR=${GEOWEBCACHE_CACHE_DIR}
+      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD}
+      - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
+      - INITIAL_MEMORY=${INITIAL_MEMORY}
+      - MAXIMUM_MEMORY=${MAXIMUM_MEMORY}
+
+  letsencrypt:
+    image: certbot/certbot
+    entrypoint: "sh"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/lib/letsencrypt:/var/lib/letsencrypt
+      - ./run-letsencrypt.sh:/run-letsencrypt.sh
+    ports:
+      - "80"
+      - "443"
+    environment:
+      - TERM=xterm
+      - LETSENCRYPT_DOMAINS=${LETSENCRYPT_DOMAINS}
+      - LETSENCRYPT_DEBUG_MODE=${LETSENCRYPT_DEBUG_MODE}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+    command: "/run-letsencrypt.sh"
+
+  nginx:
+    image: lukeswart/nginx-letsencrypt
+    volumes:
+      - ./nginx-acme-challenge-envsubst.conf:/etc/nginx/nginx.conf
+      - ./nginx-envsubst.conf:/etc/nginx/nginx-secure.conf
+    links:
+      - geoserver
+    volumes_from:
+      - letsencrypt
+    environment:
+      - MY_DOMAIN_NAME=${MY_DOMAIN_NAME}
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
