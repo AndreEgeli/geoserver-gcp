@@ -409,6 +409,11 @@
         <url-pattern>*.jspx</url-pattern>
     </servlet-mapping>
 
+    <context-param>
+        <param-name>PROXY_BASE_URL</param-name>
+        <param-value>https://geoserver.enernite.com/geoserver</param-value>
+    </context-param>
+
     <!-- The mapping for the SSI servlet -->
 <!--
     <servlet-mapping>

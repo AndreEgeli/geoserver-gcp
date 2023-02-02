@@ -10,8 +10,8 @@ services:
     environment:
       - GEOSERVER_DATA_DIR=${GEOSERVER_DATA_DIR}
       - GEOWEBCACHE_CACHE_DIR=${GEOWEBCACHE_CACHE_DIR}
-      - GEOSERVER_ADMIN_PASSWORD=geoserver
-      - GEOSERVER_ADMIN_USER=admin
+      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD}
+      - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
       - INITIAL_MEMORY=${INITIAL_MEMORY}
       - MAXIMUM_MEMORY=${MAXIMUM_MEMORY}
       - RECREATE_DATADIR=FALSE
@@ -43,7 +43,7 @@ services:
     links:
       - geoserver
     environment:
-      - MY_DOMAIN_NAME=geoserver.enernite.com
+      - MY_DOMAIN_NAME={$DOMAINS}
     ports:
       - 80:80
       - 443:443
